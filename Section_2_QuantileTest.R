@@ -1,0 +1,181 @@
+
+library(mice)
+
+# if (!require("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# 
+# BiocManager::install("impute")
+
+library(impute)
+library(missForest)
+library(miceDRF)
+
+
+# Simulate from FGM Copula
+# Method: Sample U1, then sample U2 | U1 from conditional distribution
+
+# Function to sample U2 given U1 using inverse CDF method
+sample_u2_given_u1 <- function(u1, alpha) {
+  # The conditional CDF is: F(u2|u1) = u2 + alpha*(2*u1-1)*(u2^2 - u2)
+  # We need to invert this to sample u2
+  # This is a quadratic equation: alpha*(2*u1-1)*u2^2 + [1 - alpha*(2*u1-1)]*u2 - v = 0
+  # where v ~ Uniform(0,1)
+  
+  v <- runif(1)  # Sample from uniform
+  
+  a <- alpha * (2*u1 - 1)
+  b <- 1 - alpha * (2*u1 - 1)
+  c <- -v
+  
+  # Use quadratic formula: u2 = (-b + sqrt(b^2 - 4ac)) / (2a)
+  # We need the root in [0,1]
+  
+  if (abs(a) < 1e-10) {
+    # Linear case (when u1 ≈ 0.5)
+    u2 <- v / b
+  } else {
+    discriminant <- b^2 - 4*a*c
+    u2 <- (-b + sqrt(discriminant)) / (2*a)
+  }
+  
+  return(u2)
+}
+
+# Simulation function
+simulate_fgm <- function(n, alpha) {
+  # Step 1: Sample U1 from Uniform(0,1)
+  u1 <- runif(n)
+  
+  # Step 2: Sample U2 | U1 for each u1
+  u2 <- sapply(u1, function(x) sample_u2_given_u1(x, alpha))
+  
+  return(data.frame(U1 = u1, U2 = u2))
+}
+
+
+
+### Quantile Estimation
+
+
+methods <- c( "knn", "mice_cart", "missForest", "mice_rf", "mice_drf")
+
+set.seed(2) #1
+seeds <- sample(c(0:2000),100,replace = FALSE)
+
+
+n<-5000
+d<-5
+alpha<-0.1
+nrep.total<-50
+
+Resultsquantile<-list()
+
+for (s in 1:nrep.total){
+  set.seed(seeds[s])
+  
+  # independent uniform
+  #X<-matrix(runif(n=d*n), nrow=n, ncol=d)
+  # uniform with Gaussian copula
+  # X <- gaussian_copula_uniform_sim(n = n, d = 2)$uniform_data
+  X<-simulate_fgm(n=n, alpha=1)
+  X<-cbind(X,matrix(runif( (d-2)*n ), nrow=n, ncol=d-2 ))
+  
+  vectors <- matrix(c(
+    rep(0, d),
+    0, 1, rep(0,d-2),
+    1, rep(0,d-1)
+  ), nrow = 3, byrow = TRUE)
+  
+  
+  # Generate random draws
+  # sample() will generate indices, which we use to select rows from the matrix
+  M <- vectors[apply(X,1, function(x) sample(1:3, size = 1, prob=c((x[1]+x[2])/3, (2-x[1])/3, (1-x[2])/3), replace = TRUE)), ]
+  
+  X.NA<-X
+  X.NA[M==1]<-NA
+  
+  
+  colnames(X)<-NULL
+  colnames(X)<-paste0("X",1:d)
+  colnames(X.NA)<-paste0("X",1:d)
+  
+  n<-nrow(X)
+  
+  ################################## imputations #########################################
+  ########################################################################################
+  
+  ## Add your favorite imputations here
+  imputations<-list()
+  
+  # Knn
+  imputations[["knn"]]<-impute.knn(as.matrix(X.NA))$data
+  
+  #missForest
+  imputations[["missForest"]]<-missForest(X.NA)$ximp
+  
+  # mice-cart
+  
+  blub <- mice(X.NA, method = "cart", m = 1) # visitSequence="arabic"
+  imputations[["mice_cart"]]<-mice::complete(blub, action="all")[[1]]
+  
+  blub <- mice(X.NA, method = "rf", m = 1) # visitSequence="arabic"
+  imputations[["mice_rf"]]<-mice::complete(blub, action="all")[[1]]
+  
+  blub <- mice(X.NA, method = "DRF", m = 1) # visitSequence="arabic"
+  imputations[["mice_drf"]]<-mice::complete(blub, action="all")[[1]]
+  
+  
+  
+  #Step 2: With access to the full data, check energy score:
+  # So far only for m=1!!!
+  quantile<-rep(0, length(methods))
+  names(quantile)<-methods
+  for (method in c(methods)){
+    
+    
+    Ximp<-imputations[[method]]
+    
+    colnames(Ximp)<-paste0("X",1:ncol(X))
+    quantile[method]<-quantile(Ximp[,1], probs=alpha)
+    
+  }
+  
+  
+  print(paste0("nrep ",s, " out of ", nrep.total ))
+  
+  Resultsquantile[[s]] <- quantile
+  
+  
+  
+  #return(list(new.score.imp = new.score.imp,new.score.drf=new.score.drf , energy.score=escore))
+  
+  
+}
+
+
+##Quantile of X_1 \mid M_1=0
+-7 + sqrt(49+15*alpha)
+
+
+
+
+png(filename = "Quantile_Estimate.png", 
+    width = 1700,    # Width in pixels
+    height = 800,    # Height in pixels
+    res = 120)       # Resolution in dpi
+
+
+par(mfrow=c(1,1))
+## Setup
+quantiledata<-t(sapply(1:length(Resultsquantile), function(j) Resultsquantile[[j]]))
+quantiledatamtruth<-abs(quantiledata-alpha)
+
+meanvalsquantiles<-colMeans(quantiledatamtruth)
+
+boxplot(quantiledata[,order(meanvalsquantiles, decreasing = T)],,cex.axis=1.5,cex.lab=1.5)
+abline(h=alpha, col="blue", lty=2)
+abline(h=-7 + sqrt(49+15*alpha), col="red", lty=2)
+
+# Close the PNG device
+dev.off()
+
