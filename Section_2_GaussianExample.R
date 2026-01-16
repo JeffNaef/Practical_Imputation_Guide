@@ -9,9 +9,10 @@ dat <- MASS::mvrnorm(5000, mu = c(0, 0), Sigma = matrix(c(3,1,1,1), ncol=2, byro
 colnames(dat) <- c("X2", "X1")
 dat_full <- dat
 
+## Introduce MCAR missing values
 dat[runif(5000) > 0.5, 2] <- NA 
 
-dat_imp_norm <- mice::mice(dat, m = 1, method = "norm")
+dat_imp_norm <- mice::mice(dat, m = 1, method = "norm.nob")
 dat_imp_norm <- mice::complete(dat_imp_norm) %>% 
   mutate(missing = is.na(dat[, 2]))
 
@@ -26,16 +27,20 @@ dat_full <- dat_full %>%
 
 ###################################
 
+##Study the coefficients of the linear regression X_2 onto X_1
+## (note that to impute X_1, X_1 was regressed on X_2)
 
-coef(lm(X1 ~ X2, data = dat_imp_norm.predict))
+# norm.predict (prediction imputation)
 coef(lm(X2 ~ X1, data = dat_imp_norm.predict))
 
-coef(lm(X1 ~ X2, data = dat_imp_norm))
+
+# norm.nob (stochastic Gaussian imputation) 
 coef(lm(X2 ~ X1, data = dat_imp_norm))
 
 
-coef(lm(X1 ~ X2, data = dat_full))
+# Full data (i.e. the "perfect" imputation)
 coef(lm(X2 ~ X1, data = dat_full))
+
 
 
 #############################
