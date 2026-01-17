@@ -1,5 +1,6 @@
 
 library(mice)
+library(miceDRF)
 
 # if (!require("BiocManager", quietly = TRUE))
 #   install.packages("BiocManager")
@@ -57,21 +58,11 @@ simulate_fgm <- function(n, alpha) {
 ### Quantile Estimation
 
 
-methods <- c( "knn", "mice_cart", "missForest", "mice_rf", "mice_drf")
-
-set.seed(2) #1
-seeds <- sample(c(0:2000),100,replace = FALSE)
-
-
 n<-5000
 d<-5
-alpha<-0.1
-nrep.total<-50
 
-Resultsquantile<-list()
 
-for (s in 1:nrep.total){
-  set.seed(seeds[s])
+  set.seed(seeds[1])
   
   # independent uniform
   #X<-matrix(runif(n=d*n), nrow=n, ncol=d)
@@ -107,76 +98,34 @@ for (s in 1:nrep.total){
   ## Add your favorite imputations here
   imputations<-list()
   
-  # knn
-  imputations[["knn"]]<-impute.knn(as.matrix(X.NA))$data
+  #knn
+  impute_knn <- function(X) { return(impute.knn(as.matrix(X), colmax=0.99)$data) }
   
   #missForest
-  imputations[["missForest"]]<-missForest(X.NA)$ximp
+  impute_missForest <- function(X) { return(missForest(X)$ximp) }
   
   # mice_cart
-  blub <- mice(X.NA, method = "cart", m = 1)
-  imputations[["mice_cart"]]<-mice::complete(blub, action="all")[[1]]
-  
+  impute_mice_cart <-  miceDRF::create_mice_imputation("cart")
+
   # mice_rf
-  blub <- mice(X.NA, method = "rf", m = 1)
-  imputations[["mice_rf"]]<-mice::complete(blub, action="all")[[1]]
+  impute_mice_rf <- miceDRF::create_mice_imputation("rf")
+  
   
   # mice_drf
-  blub <- mice(X.NA, method = "DRF", m = 1) 
-  imputations[["mice_drf"]]<-mice::complete(blub, action="all")[[1]]
+  impute_mice_drf <- miceDRF::create_mice_imputation("DRF")
+  
+
+  imputation_list<-list(knn=impute_knn,
+                        missForest=impute_missForest,
+                        mice_cart=impute_mice_cart,
+                        mice_rf=impute_mice_rf,
+                        mice_drf=impute_mice_drf)
   
   
+scores<-Iscores_compare(X.NA, imputation_list, N = 10)
   
-  #Step 2: With access to the full data, check energy score:
-  # So far only for m=1!!!
-  quantile<-rep(0, length(methods))
-  names(quantile)<-methods
-  for (method in c(methods)){
-    
-    
-    Ximp<-imputations[[method]]
-    
-    colnames(Ximp)<-paste0("X",1:ncol(X))
-    quantile[method]<-quantile(Ximp[,1], probs=alpha)
-    
-  }
+scores
   
-  
-  print(paste0("nrep ",s, " out of ", nrep.total ))
-  
-  Resultsquantile[[s]] <- quantile
-  
-  
-  
-  #return(list(new.score.imp = new.score.imp,new.score.drf=new.score.drf , energy.score=escore))
-  
-  
-}
 
 
-##Quantile of X_1 \mid M_1=0
--7 + sqrt(49+15*alpha)
-
-
-
-
-png(filename = "Quantile_Estimate.png", 
-    width = 1700,    # Width in pixels
-    height = 800,    # Height in pixels
-    res = 120)       # Resolution in dpi
-
-
-par(mfrow=c(1,1))
-## Setup
-quantiledata<-t(sapply(1:length(Resultsquantile), function(j) Resultsquantile[[j]]))
-quantiledatamtruth<-abs(quantiledata-alpha)
-
-meanvalsquantiles<-colMeans(quantiledatamtruth)
-
-boxplot(quantiledata[,order(meanvalsquantiles, decreasing = T)],,cex.axis=1.5,cex.lab=1.5)
-abline(h=alpha, col="blue", lty=2)
-abline(h=-7 + sqrt(49+15*alpha), col="red", lty=2)
-
-# Close the PNG device
-dev.off()
 
