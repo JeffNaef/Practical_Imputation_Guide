@@ -92,7 +92,7 @@ alpha<-0.1
 B<-200
 
 
-L<-20
+L<-30
 resultsboot<-list()
 for (method in methods){
   
@@ -144,11 +144,12 @@ for (b in 1:B) {
   for (l in 1:L){
     ## Each time impute + calculate quantile!
     Xl<-X.NA[sample(1:nrow(X.NA), size=n, replace=T),]
-    #res[["knn"]][l]<-quantile(impute_knn(Xl)[,1], probs=0.1)
-    res[["missForest"]][l]<-quantile(impute_missForest(Xl)[,1], probs=0.1)
-    res[["mice_cart"]][l]<-quantile(impute_mice_cart(Xl)[,1], probs=0.1)
-    res[["mice_rf"]][l]<-quantile(impute_mice_rf(Xl)[,1], probs=0.1)
-    #res[["mice_drf"]][l]<-quantile(impute_mice_drf(Xl)[,1], probs=0.1)
+    if ("knn" %in% methods){res[["knn"]][l]<-quantile(impute_knn(Xl)[,1], probs=0.1)}
+    if ("missForest" %in% methods){res[["missForest"]][l]<-quantile(impute_missForest(Xl)[,1], probs=0.1)}
+    if ("mice_cart" %in% methods){res[["mice_cart"]][l]<-quantile(impute_mice_cart(Xl)[,1], probs=0.1)}
+    if ("mice_rf" %in% methods){res[["mice_rf"]][l]<-quantile(impute_mice_rf(Xl)[,1], probs=0.1)}
+    if ("mice_drf" %in% methods){res[["mice_drf"]][l]<-quantile(impute_mice_drf(Xl)[,1], probs=0.1)}
+    
   }
   
   res0<-list()

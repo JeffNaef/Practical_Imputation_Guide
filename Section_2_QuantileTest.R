@@ -107,23 +107,15 @@ for (s in 1:nrep.total){
   ## Add your favorite imputations here
   imputations<-list()
   
-  # knn
-  imputations[["knn"]]<-impute.knn(as.matrix(X.NA))$data
-  
-  #missForest
-  imputations[["missForest"]]<-missForest(X.NA)$ximp
-  
-  # mice_cart
-  blub <- mice(X.NA, method = "cart", m = 1)
-  imputations[["mice_cart"]]<-mice::complete(blub, action="all")[[1]]
-  
-  # mice_rf
-  blub <- mice(X.NA, method = "rf", m = 1)
-  imputations[["mice_rf"]]<-mice::complete(blub, action="all")[[1]]
-  
-  # mice_drf
-  blub <- mice(X.NA, method = "DRF", m = 1) 
-  imputations[["mice_drf"]]<-mice::complete(blub, action="all")[[1]]
+
+  if ("knn" %in% methods){  imputations[["knn"]]<-impute.knn(as.matrix(X.NA))$data}
+  if ("missForest" %in% methods){imputations[["missForest"]]<-missForest(X.NA)$ximp}
+  if ("mice_cart" %in% methods){  blub <- mice(X.NA, method = "cart", m = 1)
+  imputations[["mice_cart"]]<-mice::complete(blub, action="all")[[1]]}
+  if ("mice_rf" %in% methods){  blub <- mice(X.NA, method = "rf", m = 1)
+  imputations[["mice_rf"]]<-mice::complete(blub, action="all")[[1]]}
+  if ("mice_drf" %in% methods){  blub <- mice(X.NA, method = "DRF", m = 1) 
+  imputations[["mice_drf"]]<-mice::complete(blub, action="all")[[1]]}
   
   
   
