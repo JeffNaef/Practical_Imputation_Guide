@@ -468,7 +468,7 @@ for (b in 1:B) {
                            guide = "none") +  # Remove individual legends
         labs(title = method,
              subtitle = sprintf("Coverage: %.1f%%", 
-                               mat$included) * 100),
+                               mat$included * 100),
              x = "Simulation (ordered by estimate)",
              y = expression(hat(beta))) +
         theme_minimal() +
