@@ -447,15 +447,17 @@ for (b in 1:B) {
     
     for (method in methods){
       # Summarize results
-      coverage_probability_Bootstrap <- mean(resultsboot[[method]]$included)
+      
+      mat<-resultsboot[[method]][1:b,]
+      
+      coverage_probability_Bootstrap <- mean(mat$included)
       cat(sprintf("%s - Coverage probability: %.3f\n", method, coverage_probability_Bootstrap))
       
       # Order and prepare data
-      resultsboot[[method]] <- resultsboot[[method]][order(resultsboot[[method]]$beta_imp), ]
-      resultsboot[[method]]$sim_id <- 1:nrow(resultsboot[[method]])
+      mat$sim_id <- 1:b
       
       # Create the plot
-      plot_list[[method]] <- ggplot(resultsboot[[method]], aes(x = sim_id, y = beta_imp)) +
+      plot_list[[method]] <- ggplot(mat, aes(x = sim_id, y = beta_imp)) +
         geom_linerange(aes(ymin = ci_lower, ymax = ci_upper, color = included), 
                        alpha = 0.6, linewidth = 0.5) +
         geom_point(aes(color = included), size = 0.8) +
@@ -466,7 +468,7 @@ for (b in 1:B) {
                            guide = "none") +  # Remove individual legends
         labs(title = method,
              subtitle = sprintf("Coverage: %.1f%%", 
-                                mean(resultsboot[[method]]$included) * 100),
+                               mat$included) * 100),
              x = "Simulation (ordered by estimate)",
              y = expression(hat(beta))) +
         theme_minimal() +
@@ -485,7 +487,6 @@ for (b in 1:B) {
     print(combined_plot)
     
   }
-  
 }
 
 
