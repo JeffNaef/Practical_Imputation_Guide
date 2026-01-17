@@ -11,10 +11,11 @@ library(patchwork)
 # 
 # BiocManager::install("impute")
 library(impute)
+library(drf)
+
 # Set seed for reproducibility
 set.seed(123)
 
-library(drf)
 
 
 
@@ -72,25 +73,6 @@ impute_missForest <- function(X) { return(missForest(X)$ximp) }
 # mice_cart
 impute_mice_cart <-  miceDRF::create_mice_imputation("cart")
 
-# mice_rf
-impute_mice_rf_m <- function(data, m=5){
-  dat_imp_norm <- mice::mice(data, m = m, method = "rf", printFlag = FALSE)
-
-  
-  # Method 5: More explicit loop
-  imputed_list <- vector("list", m)
-  res<-c()
-  for (i in 1:m) {
-    imputed_list[[i]] <- complete(dat_imp_norm, i)
-    
-    res[i]<-quantile(imputed_list[[i]][,1], probs=0.1)
-    
-  }
-  
-  return(mean(res))
-  
-  
-}
 
 impute_mice_rf <- miceDRF::create_mice_imputation("rf")
 
@@ -99,9 +81,10 @@ impute_mice_rf <- miceDRF::create_mice_imputation("rf")
 impute_mice_drf <- miceDRF::create_mice_imputation("DRF")
 
 
-#methods<-c("knn", "missForest", "mice_cart", "mice_rf","mice_drf") 
+#methods<-c("knn", "missForest", "mice_cart", "mice_rf", "mice_drf") 
+methods<-c("missForest", "mice_cart", "mice_rf") 
 
-methods<-c("mice_cart","sample_split_rf")
+#methods<-c("mice_cart","sample_split_rf")
 
 n<-2000
 d<-5
@@ -162,22 +145,19 @@ for (b in 1:B) {
     ## Each time impute + calculate quantile!
     Xl<-X.NA[sample(1:nrow(X.NA), size=n, replace=T),]
     #res[["knn"]][l]<-quantile(impute_knn(Xl)[,1], probs=0.1)
-    #res[["missForest"]][l]<-quantile(impute_missForest(Xl)[,1], probs=0.1)
+    res[["missForest"]][l]<-quantile(impute_missForest(Xl)[,1], probs=0.1)
     res[["mice_cart"]][l]<-quantile(impute_mice_cart(Xl)[,1], probs=0.1)
-    #res[["mice_rf"]][l]<-quantile(impute_mice_rf(Xl)[,1], probs=0.1)
-    res[["sample_split_rf"]][l]<-unlist(get_results_sample_split(Xl))
-    #res[["multiple_rf"]][l]<-unlist(impute_mice_rf_m(Xl))
+    res[["mice_rf"]][l]<-quantile(impute_mice_rf(Xl)[,1], probs=0.1)
     #res[["mice_drf"]][l]<-quantile(impute_mice_drf(Xl)[,1], probs=0.1)
   }
   
   res0<-list()
-  #res0[["knn"]]<-quantile(impute_knn(X.NA)[,1], probs=0.1)
-  #res0[["missForest"]]<-quantile(impute_missForest(X.NA)[,1], probs=0.1)
-  res0[["mice_cart"]]<-quantile(impute_mice_cart(X.NA)[,1], probs=0.1)
-  res0[["mice_rf"]]<-quantile(impute_mice_rf(X.NA)[,1], probs=0.1)
-  #res0[["sample_split_rf"]]<-unlist(get_results_sample_split(X.NA))
-  #res0[["multiple_rf"]]<-unlist(impute_mice_rf_m(X.NA))
-  #res0[["mice_drf"]]<-quantile(impute_mice_drf(X.NA)[,1], probs=0.1)
+  if ("knn" %in% methods){res0[["knn"]]<-quantile(impute_knn(X.NA)[,1], probs=0.1)}
+  if ("missForest" %in% methods){res0[["missForest"]]<-quantile(impute_missForest(X.NA)[,1], probs=0.1)}
+  if ("mice_cart" %in% methods){res0[["mice_cart"]]<-quantile(impute_mice_cart(X.NA)[,1], probs=0.1)}
+  if ("mice_rf" %in% methods){res0[["mice_rf"]]<-quantile(impute_mice_rf(X.NA)[,1], probs=0.1)}
+  if ("mice_drf" %in% methods){res0[["mice_drf"]]<-quantile(impute_mice_drf(X.NA)[,1], probs=0.1)}
+
   
   
   for (method in methods){
