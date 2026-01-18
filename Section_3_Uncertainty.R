@@ -82,7 +82,7 @@ impute_mice_drf <- miceDRF::create_mice_imputation("DRF")
 
 
 #methods<-c("knn", "missForest", "mice_cart", "mice_rf", "mice_drf") 
-methods<-c("missForest", "mice_cart", "mice_rf") 
+methods<-c("knn", "mice_cart", "mice_rf", "mice_drf") 
 
 #methods<-c("mice_cart","sample_split_rf")
 
@@ -101,7 +101,10 @@ for (method in methods){
     se_imp = numeric(B),
     ci_lower = numeric(B),
     ci_upper = numeric(B),
-    included = logical(B)
+    ci_lower2 = numeric(B),
+    ci_upper2 = numeric(B),
+    included = logical(B),
+    included2 = logical(B)
   )
   
 }  
@@ -111,6 +114,7 @@ for (method in methods){
 for (b in 1:B) {
   cat(b)
   
+  ## Generate data ##
   
   X<-simulate_fgm(n=n, alpha=1)
   X<-cbind(X,matrix(runif( (d-2)*n ), nrow=n, ncol=d-2 ))
@@ -171,8 +175,13 @@ for (b in 1:B) {
     resultsboot[[method]]$ci_lower[b] <- resultsboot[[method]]$beta_imp[b] - 1.96 * resultsboot[[method]]$se_imp[b] # 2*resultsboot[[method]]$beta_imp[b] - quantile(res[[method]], probs=1-0.05/2)  #resultsboot[[method]]$beta_imp[b] - 1.96 * resultsboot[[method]]$se_imp[b]
     resultsboot[[method]]$ci_upper[b] <- resultsboot[[method]]$beta_imp[b] + 1.96 * resultsboot[[method]]$se_imp[b]#2*resultsboot[[method]]$beta_imp[b] - quantile(res[[method]], probs=0.05/2)   #resultsboot[[method]]$beta_imp[b] + 1.96 * resultsboot[[method]]$se_imp[b]
     
+    resultsboot[[method]]$ci_lower2[b] <-2*resultsboot[[method]]$beta_imp[b] - quantile(res[[method]], probs=1-0.05/2)  #resultsboot[[method]]$beta_imp[b] - 1.96 * resultsboot[[method]]$se_imp[b]
+    resultsboot[[method]]$ci_upper2[b] <-2*resultsboot[[method]]$beta_imp[b] - quantile(res[[method]], probs=0.05/2)   #resultsboot[[method]]$beta_imp[b] + 1.96 * resultsboot[[method]]$se_imp[b]
+    
+    
     # Check if true value (0) is in the confidence interval
     resultsboot[[method]]$included[b] <- resultsboot[[method]]$ci_lower[b] <= alpha && alpha <= resultsboot[[method]]$ci_upper[b]
+    resultsboot[[method]]$included2[b] <- resultsboot[[method]]$ci_lower2[b] <= alpha && alpha <= resultsboot[[method]]$ci_upper2[b]
   }
   
   
@@ -207,9 +216,9 @@ for (b in 1:B) {
                            guide = "none") +  # Remove individual legends
         labs(title = method,
              subtitle = sprintf("Coverage: %.1f%%", 
-                               mat$included * 100),
+                               mean(mat$included) * 100),
              x = "Simulation (ordered by estimate)",
-             y = expression(hat(beta))) +
+             y = expression(hat(q))) +
         theme_minimal() +
         theme(plot.title = element_text(size = 11, face = "bold"),
               plot.subtitle = element_text(size = 9))
@@ -229,80 +238,65 @@ for (b in 1:B) {
 }
 
 
+save(resultsboot, file="BootstrapResults.Rdata")
 
 
+png(filename = "Bootstrap_CIs.png", 
+    width = 1700,    # Width in pixels
+    height = 800,    # Height in pixels
+    res = 120)       # Resolution in dpi
 
 
+par(mfrow=c(1,1))
 
+# Create list to store plots
+plot_list <- list()
 
-
-##Rubins Rules
-
-resultsRub <- data.frame(
-  beta_imp = numeric(B),
-  se_imp = numeric(B),
-  ci_lower = numeric(B),
-  ci_upper = numeric(B),
-  included = logical(B)
-)
-
-
-# Run simulations
-for (b in 1:B) {
-  # Generate bivariate normal data with zero correlation
-  mu <- c(0, 0)
-  Sigma <- matrix(c(1, 0, 0, 1), ncol = 2)
-  data_complete <- as.data.frame(mvrnorm(n, mu = mu, Sigma = Sigma))
-  names(data_complete) <- c("X1", "X2")
+for (method in methods){
+  # Summarize results
   
-  # Introduce Missingness
-  data <- introducemissing(data_complete)
+  mat<-resultsboot[[method]]
   
-  res<-get_resultsRub(data, method=method)
-  resultsRub$beta_imp[b] <-res$estimate
-  resultsRub$se_imp[b] <- res$se
+  coverage_probability_Bootstrap <- mean(mat$included)
+  cat(sprintf("%s - Coverage probability: %.3f\n", method, coverage_probability_Bootstrap))
   
-  # Calculate confidence intervals (95%)
-  resultsRub$ci_lower[b] <- resultsRub$beta_imp[b] - 1.96 * resultsRub$se_imp[b]
-  resultsRub$ci_upper[b] <- resultsRub$beta_imp[b] + 1.96 * resultsRub$se_imp[b]
+  # Order and prepare data
+  mat$sim_id <- 1:b
   
-  # Check if true value (0) is in the confidence interval
-  resultsRub$included[b] <- resultsRub$ci_lower[b] <= 0 && 0 <= resultsRub$ci_upper[b]
-  
-  # Optional: print progress
-  if (b %% 100 == 0) cat("Completed", b, "simulations\n")
+  # Create the plot
+  plot_list[[method]] <- ggplot(mat, aes(x = sim_id, y = beta_imp)) +
+    geom_linerange(aes(ymin = ci_lower, ymax = ci_upper, color = included), 
+                   alpha = 0.6, linewidth = 0.5) +
+    geom_point(aes(color = included), size = 0.8) +
+    geom_hline(yintercept = alpha, linetype = "dashed", 
+               color = "black", linewidth = 0.8) +
+    scale_color_manual(values = c("TRUE" = "gray60", "FALSE" = "red"),
+                       labels = c("TRUE" = "Covers", "FALSE" = "Misses"),
+                       guide = "none") +  # Remove individual legends
+    labs(title = method,
+         subtitle = sprintf("Coverage: %.1f%%", 
+                            mean(mat$included) * 100),
+         x = "Simulation (ordered by estimate)",
+         y = expression(hat(q))) +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 11, face = "bold"),
+          plot.subtitle = element_text(size = 9))
 }
 
-# Summarize results
-coverage_probability_RubinsRules <- mean(resultsRub$included)
-cat("Coverage probability with Rubins Rules:", coverage_probability_RubinsRules, "\n")
+# Combine plots in 2x2 grid
+combined_plot <- wrap_plots(plot_list, ncol = 2) +
+  plot_annotation(
+    title = "Confidence Interval Coverage: Bootstrap Methods",
+    subtitle = "Expected coverage: 95%",
+    theme = theme(plot.title = element_text(size = 14, face = "bold"))
+  )
 
-## It seems even for n=1000, there is still an undercoverage with mice-drf!
+print(combined_plot)
 
-resultsRub <- resultsRub[order(resultsRub$beta_imp), ]
-resultsRub$sim_id <- 1:nrow(resultsRub)
+# Close the PNG device
+dev.off()
 
-# Create the plot
-ggplot(resultsRub, aes(x = sim_id, y = beta_imp)) +
-  # Color CIs by whether they cover the true value
-  geom_linerange(aes(ymin = ci_lower, ymax = ci_upper, 
-                     color = included), 
-                 alpha = 0.6, linewidth = 0.5) +
-  geom_point(aes(color = included), size = 0.8) +
-  # True parameter value
-  geom_hline(yintercept = 0, linetype = "dashed", 
-             color = "black", linewidth = 0.8) +
-  scale_color_manual(values = c("TRUE" = "gray60", "FALSE" = "red"),
-                     labels = c("TRUE" = "Covers true value", 
-                                "FALSE" = "Misses true value")) +
-  labs(title = "Confidence Interval Coverage Bootstrap",
-       subtitle = sprintf("Coverage rate: %.1f%% (expected: 95%%)", 
-                          mean(resultsRub$included) * 100),
-       x = "Simulation run (ordered by estimate)",
-       y = expression(hat(beta)),
-       color = "") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+
 
 
 
