@@ -208,7 +208,7 @@ for (b in 1:B) {
   
 }
 
-save(resultsRub, file="RubinResults.Rdata")
+save(resultsRub, file="RubinResults_n1000.Rdata")
 
 
 png(filename = "Rubin_CIs.png", 
