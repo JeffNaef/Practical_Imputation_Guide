@@ -86,7 +86,7 @@ methods<-c("knn", "mice_cart", "mice_rf", "mice_drf")
 
 #methods<-c("mice_cart","sample_split_rf")
 
-n<-2000
+n<-500
 d<-5
 alpha<-0.1
 B<-200

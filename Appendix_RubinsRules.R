@@ -58,7 +58,7 @@ simulate_fgm <- function(n, alpha) {
 
 
 
-n<-2000
+n<-500
 d<-5
 alpha<-0.1
 B<-200
@@ -208,10 +208,10 @@ for (b in 1:B) {
   
 }
 
-save(resultsRub, file="RubinResults_n1000.Rdata")
+save(resultsRub, file="RubinResults_n500.Rdata")
 
 
-png(filename = "Rubin_CIs.png", 
+png(filename = "Rubin_CIs_n500.png", 
     width = 1700,    # Width in pixels
     height = 800,    # Height in pixels
     res = 120)       # Resolution in dpi
