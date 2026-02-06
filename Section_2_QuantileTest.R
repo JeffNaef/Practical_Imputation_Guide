@@ -1,4 +1,3 @@
-
 library(mice)
 
 # if (!require("BiocManager", quietly = TRUE))
@@ -9,7 +8,6 @@ library(mice)
 library(impute)
 library(missForest)
 library(miceDRF)
-
 
 # Simulate from FGM Copula
 # Method: Sample U1, then sample U2 | U1 from conditional distribution
@@ -41,6 +39,7 @@ sample_u2_given_u1 <- function(u1, alpha) {
   return(u2)
 }
 
+
 # Simulation function
 simulate_fgm <- function(n, alpha) {
   # Step 1: Sample U1 from Uniform(0,1)
@@ -52,7 +51,44 @@ simulate_fgm <- function(n, alpha) {
   return(data.frame(U1 = u1, U2 = u2))
 }
 
+uniformexample<- function(n,d){
+  
+  X<-simulate_fgm(n=n, alpha=1)
+  X<-cbind(X,matrix(runif( (d-2)*n ), nrow=n, ncol=d-2 ))
+  
+  vectors <- matrix(c(
+    rep(0, d),
+    0, 1, rep(0,d-2),
+    1, rep(0,d-1)
+  ), nrow = 3, byrow = TRUE)
+  
+  
+  # Generate random draws
+  # sample() will generate indices, which we use to select rows from the matrix
+  M <- vectors[apply(X,1, function(x) sample(1:3, size = 1, prob=c((x[1]+x[2])/3, (2-x[1])/3, (1-x[2])/3), replace = TRUE)), ]
+  
+  X.NA<-X
+  X.NA[M==1]<-NA
+  
+  colnames(X)<-NULL
+  colnames(X)<-paste0("X",1:d)
+  colnames(X.NA)<-paste0("X",1:d)
+  
+  return(list(X=X, X.NA=X.NA))
+  
+}
 
+
+n<-1000
+d<-3
+
+tmp<-uniformexample(n,d)
+
+X<-tmp$X
+X.NA<-tmp$X.NA
+
+head(X)
+head(X.NA)
 
 ### Quantile Estimation
 
@@ -73,33 +109,11 @@ Resultsquantile<-list()
 for (s in 1:nrep.total){
   set.seed(seeds[s])
   
-  # independent uniform
-  #X<-matrix(runif(n=d*n), nrow=n, ncol=d)
-  # uniform with Gaussian copula
-  # X <- gaussian_copula_uniform_sim(n = n, d = 2)$uniform_data
-  X<-simulate_fgm(n=n, alpha=1)
-  X<-cbind(X,matrix(runif( (d-2)*n ), nrow=n, ncol=d-2 ))
-  
-  vectors <- matrix(c(
-    rep(0, d),
-    0, 1, rep(0,d-2),
-    1, rep(0,d-1)
-  ), nrow = 3, byrow = TRUE)
-  
-  
-  # Generate random draws
-  # sample() will generate indices, which we use to select rows from the matrix
-  M <- vectors[apply(X,1, function(x) sample(1:3, size = 1, prob=c((x[1]+x[2])/3, (2-x[1])/3, (1-x[2])/3), replace = TRUE)), ]
-  
-  X.NA<-X
-  X.NA[M==1]<-NA
-  
-  
-  colnames(X)<-NULL
-  colnames(X)<-paste0("X",1:d)
-  colnames(X.NA)<-paste0("X",1:d)
-  
-  n<-nrow(X)
+  # Simulate the Uniform Example.
+  tmp<-uniformexample(n,d)
+  X<-tmp$X
+  X.NA<-tmp$X.NA
+
   
   ################################## imputations #########################################
   ########################################################################################
